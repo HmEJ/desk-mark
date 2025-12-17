@@ -1,0 +1,9 @@
+{
+  "text": "水印文字 ${time}",
+  "angle": -45,
+  "fontSize": 28,
+  "gap": 180,
+  "opacity": 0.15,
+  "color": "#D8D8D8",
+  "fontFamily": "SimSun"
+}
