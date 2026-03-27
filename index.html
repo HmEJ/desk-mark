@@ -19,6 +19,8 @@
 <script>
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
+    let timer = null;
+    let visible = true;
 
     let config = {
         text: 'CONFIDENTIAL',
@@ -33,33 +35,67 @@
     function resize() {
         canvas.width = innerWidth;
         canvas.height = innerHeight;
+        draw();
     }
 
     resize();
     addEventListener('resize', resize);
 
+    function shouldAutoRefresh(template) {
+        return /\$\{(time|date)\}/.test(template || '');
+    }
+
+    function setupTimer() {
+        if (timer) {
+            clearInterval(timer);
+            timer = null;
+        }
+
+        if (shouldAutoRefresh(config.text) && visible) {
+            timer = setInterval(draw, 1000);
+        }
+    }
+
+    function createPatternTile(text) {
+        const tile = document.createElement('canvas');
+        const tctx = tile.getContext('2d');
+        tctx.font = `${config.fontSize}px ${config.fontFamily}`;
+
+        const textWidth = Math.ceil(tctx.measureText(text).width);
+        const stepX = Math.max(1, textWidth + Number(config.gap || 0));
+        const stepY = Math.max(1, Number(config.fontSize || 0) + Number(config.gap || 0));
+
+        tile.width = stepX;
+        tile.height = stepY;
+
+        tctx.globalAlpha = Number(config.opacity);
+        tctx.fillStyle = config.color;
+        tctx.font = `${config.fontSize}px ${config.fontFamily}`;
+        tctx.textBaseline = 'top';
+        tctx.fillText(text, 0, 0);
+
+        return tile;
+    }
+
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.save();
-        ctx.globalAlpha = config.opacity;
-        ctx.fillStyle = config.color;
-        ctx.font = `${config.fontSize}px ${config.fontFamily}`;
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate(config.angle * Math.PI / 180);
+        if (!visible) {
+            return;
+        }
 
         const text = resolveTemplate(config.text);
-        const w = ctx.measureText(text).width;
+        const tile = createPatternTile(text);
+        const pattern = ctx.createPattern(tile, 'repeat');
 
-        const stepX = w + config.gap;
-        const stepY = config.fontSize + config.gap;
-
-        for (let x = -canvas.width; x < canvas.width; x += stepX) {
-            for (let y = -canvas.height; y < canvas.height; y += stepY) {
-                const text = resolveTemplate(config.text);
-                ctx.fillText(text, x, y);
-
-            }
+        if (!pattern) {
+            return;
         }
+
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(config.angle * Math.PI / 180);
+        ctx.fillStyle = pattern;
+        ctx.fillRect(-canvas.width * 2, -canvas.height * 2, canvas.width * 4, canvas.height * 4);
         ctx.restore();
     }
 
@@ -82,10 +118,13 @@
 
     window.api.onConfig(cfg => {
         Object.assign(config, cfg);
+        setupTimer();
         draw();
     });
-    window.api.onReload(() => {
-        location.reload();
+    window.api.onVisibility(nextVisible => {
+        visible = !!nextVisible;
+        setupTimer();
+        draw();
     });
 
 </script>

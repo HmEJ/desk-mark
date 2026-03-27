@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>水印参数配置</title>
+    <style>
+        :root {
+            --bg: #f4f1ea;
+            --card: #ffffff;
+            --text: #2f2b26;
+            --muted: #7c7469;
+            --border: #d8d2c8;
+            --accent: #125c4f;
+            --accent-2: #9e6f3f;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        }
+
+        body {
+            margin: 0;
+            background:
+                radial-gradient(circle at 20% 10%, #efe9df, transparent 40%),
+                radial-gradient(circle at 80% 100%, #f3e8d7, transparent 45%),
+                var(--bg);
+            color: var(--text);
+        }
+
+        .wrap {
+            padding: 20px;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .sub {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .card {
+            margin-top: 18px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 10px 30px rgba(53, 43, 31, 0.07);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .field.full {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        input,
+        select {
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 14px;
+            outline: none;
+            background: #fff;
+        }
+
+        input:focus,
+        select:focus {
+            border-color: var(--accent);
+        }
+
+        .row {
+            margin-top: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .actions {
+            margin-top: 16px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            border: none;
+            border-radius: 9px;
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .primary {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .ghost {
+            background: #e8e2d8;
+            color: #3c3228;
+        }
+
+        .warn {
+            background: var(--accent-2);
+            color: #fff;
+        }
+
+        .status {
+            margin-top: 12px;
+            font-size: 12px;
+            color: var(--muted);
+            min-height: 18px;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 560px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h1 class="title">桌面水印参数配置</h1>
+    <div class="sub">支持变量: ${time}, ${date}, ${username}, ${hostname}</div>
+
+    <div class="card">
+        <div class="grid">
+            <div class="field full">
+                <label for="text">文本模板</label>
+                <input id="text" placeholder="例如: 公司机密 ${date}" />
+            </div>
+
+            <div class="field">
+                <label for="angle">角度 (angle)</label>
+                <input id="angle" type="number" min="-180" max="180" step="1" />
+            </div>
+
+            <div class="field">
+                <label for="fontSize">字号 (fontSize)</label>
+                <input id="fontSize" type="number" min="8" max="120" step="1" />
+            </div>
+
+            <div class="field">
+                <label for="gap">间距 (gap)</label>
+                <input id="gap" type="number" min="20" max="600" step="1" />
+            </div>
+
+            <div class="field">
+                <label for="opacity">透明度 (0-1)</label>
+                <input id="opacity" type="number" min="0.01" max="1" step="0.01" />
+            </div>
+
+            <div class="field">
+                <label for="color">颜色</label>
+                <input id="color" type="color" />
+            </div>
+
+            <div class="field full">
+                <label for="fontSelect">字体候选 (检测到的本机字体)</label>
+                <select id="fontSelect"></select>
+            </div>
+
+            <div class="field full">
+                <label for="fontFamily">字体</label>
+                <input id="fontFamily" placeholder="例如: SimSun" />
+            </div>
+        </div>
+
+        <div class="row">
+            <label>
+                <input id="enabled" type="checkbox" style="width:auto; margin-right: 6px;" />
+                开启水印
+            </label>
+        </div>
+
+        <div class="actions">
+            <button class="primary" id="save">保存并应用</button>
+            <button class="ghost" id="reload">从文件重新加载</button>
+            <button class="warn" id="closeWatermark">仅关闭水印</button>
+        </div>
+
+        <div class="status" id="status"></div>
+    </div>
+</div>
+
+<script>
+    const fields = {
+        text: document.getElementById('text'),
+        angle: document.getElementById('angle'),
+        fontSize: document.getElementById('fontSize'),
+        gap: document.getElementById('gap'),
+        opacity: document.getElementById('opacity'),
+        color: document.getElementById('color'),
+        fontSelect: document.getElementById('fontSelect'),
+        fontFamily: document.getElementById('fontFamily'),
+        enabled: document.getElementById('enabled')
+    };
+
+    const statusEl = document.getElementById('status');
+    const CANDIDATE_FONTS = [
+        'Microsoft YaHei',
+        'SimSun',
+        'SimHei',
+        'KaiTi',
+        'FangSong',
+        'NSimSun',
+        'Microsoft JhengHei',
+        'PingFang SC',
+        'Hiragino Sans GB',
+        'Noto Sans CJK SC',
+        'Source Han Sans SC',
+        'Arial',
+        'Calibri',
+        'Times New Roman',
+        'Segoe UI',
+        'Tahoma',
+        'Verdana',
+        'Courier New',
+        'Consolas'
+    ];
+
+    function setStatus(text) {
+        statusEl.textContent = text || '';
+    }
+
+    function isFontAvailable(fontName) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const sample = 'wmWM1234中文测字';
+        const size = '48px';
+        const bases = ['monospace', 'serif', 'sans-serif'];
+
+        return bases.some(base => {
+            ctx.font = `${size} ${base}`;
+            const baseWidth = ctx.measureText(sample).width;
+            ctx.font = `${size} "${fontName}", ${base}`;
+            const testWidth = ctx.measureText(sample).width;
+            return Math.abs(baseWidth - testWidth) > 0.1;
+        });
+    }
+
+    function getAvailableFonts() {
+        return CANDIDATE_FONTS.filter(isFontAvailable);
+    }
+
+    function fillFontSelect(selectedFont) {
+        const fonts = getAvailableFonts();
+        const current = selectedFont || fields.fontFamily.value || 'SimSun';
+        const allFonts = [...new Set([...fonts, current])];
+
+        fields.fontSelect.innerHTML = '';
+
+        const customOption = document.createElement('option');
+        customOption.value = '__custom__';
+        customOption.textContent = '手动输入字体';
+        fields.fontSelect.appendChild(customOption);
+
+        allFonts.forEach(font => {
+            const option = document.createElement('option');
+            option.value = font;
+            option.textContent = font;
+            option.style.fontFamily = `"${font}", "Microsoft YaHei", sans-serif`;
+            fields.fontSelect.appendChild(option);
+        });
+
+        if (allFonts.includes(current)) {
+            fields.fontSelect.value = current;
+        } else {
+            fields.fontSelect.value = '__custom__';
+        }
+    }
+
+    function setForm(data) {
+        fields.text.value = data.text || '';
+        fields.angle.value = data.angle;
+        fields.fontSize.value = data.fontSize;
+        fields.gap.value = data.gap;
+        fields.opacity.value = data.opacity;
+        fields.color.value = data.color || '#d8d8d8';
+        fields.fontFamily.value = data.fontFamily || 'SimSun';
+        fillFontSelect(fields.fontFamily.value);
+        fields.enabled.checked = !!data.enabled;
+
+        if (data.configPath) {
+            setStatus(`当前配置路径: ${data.configPath}`);
+        }
+    }
+
+    function collectForm() {
+        return {
+            text: fields.text.value,
+            angle: Number(fields.angle.value),
+            fontSize: Number(fields.fontSize.value),
+            gap: Number(fields.gap.value),
+            opacity: Number(fields.opacity.value),
+            color: fields.color.value,
+            fontFamily: fields.fontFamily.value
+        };
+    }
+
+    async function init() {
+        const data = await window.api.getConfig();
+        setForm(data);
+    }
+
+    fields.fontSelect.addEventListener('change', () => {
+        if (fields.fontSelect.value !== '__custom__') {
+            fields.fontFamily.value = fields.fontSelect.value;
+        }
+    });
+
+    fields.fontFamily.addEventListener('input', () => {
+        const match = Array.from(fields.fontSelect.options).some(option => option.value === fields.fontFamily.value);
+        fields.fontSelect.value = match ? fields.fontFamily.value : '__custom__';
+    });
+
+    fields.enabled.addEventListener('change', async () => {
+        const result = await window.api.toggleWatermark(fields.enabled.checked);
+        fields.enabled.checked = !!result.enabled;
+    });
+
+    document.getElementById('save').addEventListener('click', async () => {
+        const result = await window.api.saveConfig(collectForm());
+        if (result.ok) {
+            setStatus(`保存成功: ${result.configPath}`);
+            fields.enabled.checked = true;
+        }
+    });
+
+    document.getElementById('reload').addEventListener('click', async () => {
+        const result = await window.api.reloadConfig();
+        if (result.ok) {
+            const data = await window.api.getConfig();
+            setForm(data);
+            setStatus(`已重新加载: ${result.configPath}`);
+        }
+    });
+
+    document.getElementById('closeWatermark').addEventListener('click', async () => {
+        await window.api.toggleWatermark(false);
+        fields.enabled.checked = false;
+        setStatus('水印已关闭，可点击“从文件重新加载”重新开启。');
+    });
+
+    init().catch(err => {
+        setStatus(`初始化失败: ${err.message}`);
+    });
+</script>
+</body>
+</html>
