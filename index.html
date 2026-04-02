@@ -29,7 +29,9 @@
         gap: 200,
         opacity: 0.15,
         color: '#000',
-        fontFamily: 'Alibaba'
+        fontFamily: 'Alibaba',
+        stretchX: 1,
+        stretchY: 1
     };
 
     function resize() {
@@ -61,9 +63,12 @@
         const tctx = tile.getContext('2d');
         tctx.font = `${config.fontSize}px ${config.fontFamily}`;
 
+        const stretchX = Math.max(0.5, Math.min(3, Number(config.stretchX || 1)));
+        const stretchY = Math.max(0.5, Math.min(3, Number(config.stretchY || 1)));
+
         const textWidth = Math.ceil(tctx.measureText(text).width);
-        const stepX = Math.max(1, textWidth + Number(config.gap || 0));
-        const stepY = Math.max(1, Number(config.fontSize || 0) + Number(config.gap || 0));
+        const stepX = Math.max(1, Math.ceil(textWidth * stretchX) + Number(config.gap || 0));
+        const stepY = Math.max(1, Math.ceil(Number(config.fontSize || 0) * stretchY) + Number(config.gap || 0));
 
         tile.width = stepX;
         tile.height = stepY;
@@ -72,7 +77,10 @@
         tctx.fillStyle = config.color;
         tctx.font = `${config.fontSize}px ${config.fontFamily}`;
         tctx.textBaseline = 'top';
+        tctx.save();
+        tctx.scale(stretchX, stretchY);
         tctx.fillText(text, 0, 0);
+        tctx.restore();
 
         return tile;
     }

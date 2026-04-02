@@ -168,6 +168,16 @@
             </div>
 
             <div class="field">
+                <label for="stretchX">横向拉伸 (stretchX)</label>
+                <input id="stretchX" type="number" min="0.5" max="3" step="0.1" />
+            </div>
+
+            <div class="field">
+                <label for="stretchY">纵向拉伸 (stretchY)</label>
+                <input id="stretchY" type="number" min="0.5" max="3" step="0.1" />
+            </div>
+
+            <div class="field">
                 <label for="gap">间距 (gap)</label>
                 <input id="gap" type="number" min="20" max="600" step="1" />
             </div>
@@ -190,6 +200,15 @@
             <div class="field full">
                 <label for="fontFamily">字体</label>
                 <input id="fontFamily" placeholder="例如: SimSun" />
+            </div>
+
+            <div class="field full">
+                <label for="topMostMode">置顶强度</label>
+                <select id="topMostMode">
+                    <option value="strong">强置顶 (最强覆盖，可能更耗资源)</option>
+                    <option value="balanced">平衡 (推荐)</option>
+                    <option value="light">轻量 (更省资源，覆盖能力较弱)</option>
+                </select>
             </div>
         </div>
 
@@ -215,11 +234,14 @@
         text: document.getElementById('text'),
         angle: document.getElementById('angle'),
         fontSize: document.getElementById('fontSize'),
+        stretchX: document.getElementById('stretchX'),
+        stretchY: document.getElementById('stretchY'),
         gap: document.getElementById('gap'),
         opacity: document.getElementById('opacity'),
         color: document.getElementById('color'),
         fontSelect: document.getElementById('fontSelect'),
         fontFamily: document.getElementById('fontFamily'),
+        topMostMode: document.getElementById('topMostMode'),
         enabled: document.getElementById('enabled')
     };
 
@@ -301,11 +323,14 @@
         fields.text.value = data.text || '';
         fields.angle.value = data.angle;
         fields.fontSize.value = data.fontSize;
+        fields.stretchX.value = data.stretchX ?? 1;
+        fields.stretchY.value = data.stretchY ?? 1;
         fields.gap.value = data.gap;
         fields.opacity.value = data.opacity;
         fields.color.value = data.color || '#d8d8d8';
         fields.fontFamily.value = data.fontFamily || 'SimSun';
         fillFontSelect(fields.fontFamily.value);
+        fields.topMostMode.value = data.topMostMode || 'balanced';
         fields.enabled.checked = !!data.enabled;
 
         if (data.configPath) {
@@ -318,10 +343,13 @@
             text: fields.text.value,
             angle: Number(fields.angle.value),
             fontSize: Number(fields.fontSize.value),
+            stretchX: Number(fields.stretchX.value),
+            stretchY: Number(fields.stretchY.value),
             gap: Number(fields.gap.value),
             opacity: Number(fields.opacity.value),
             color: fields.color.value,
-            fontFamily: fields.fontFamily.value
+            fontFamily: fields.fontFamily.value,
+            topMostMode: fields.topMostMode.value
         };
     }
 

@@ -1,9 +1,12 @@
 {
   "text": "水印文字 ${date}",
-  "angle": -45,
-  "fontSize": 28,
+  "angle": -30,
+  "fontSize": 32,
+  "stretchX": 1,
+  "stretchY": 1.2,
   "gap": 180,
   "opacity": 0.3,
   "color": "#948f8f",
-  "fontFamily": "SimSun"
+  "fontFamily": "SimSun",
+  "topMostMode": "balanced"
 }

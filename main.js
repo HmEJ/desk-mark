@@ -2,6 +2,7 @@ const { app, BrowserWindow, screen, Tray, Menu, ipcMain, nativeImage } = require
 const path = require('path');
 const fs = require('fs');
 let tray = null;
+let trayMenu = null;
 
 const DEFAULT_CONFIG = {
     text: 'CONFIDENTIAL ${date}',
@@ -10,7 +11,10 @@ const DEFAULT_CONFIG = {
     gap: 180,
     opacity: 0.15,
     color: '#D8D8D8',
-    fontFamily: 'SimSun'
+    fontFamily: 'SimSun',
+    stretchX: 1,
+    stretchY: 1,
+    topMostMode: 'balanced'
 };
 
 const watermarkWindows = new Map();
@@ -18,7 +22,7 @@ let settingsWindow = null;
 let configPathInUse = '';
 let watermarkEnabled = true;
 let currentConfig = { ...DEFAULT_CONFIG };
-let keepTopTimer = null;
+let topMostRefreshTimer = null;
 
 function readJsonIfExists(filePath) {
     if (!filePath || !fs.existsSync(filePath)) {
@@ -33,9 +37,33 @@ function readJsonIfExists(filePath) {
 }
 
 function normalizeConfig(input) {
-    return {
+    const merged = {
         ...DEFAULT_CONFIG,
         ...(input || {})
+    };
+
+    const safeNumber = (value, fallback, min, max) => {
+        const n = Number(value);
+        if (!Number.isFinite(n)) {
+            return fallback;
+        }
+
+        return Math.min(max, Math.max(min, n));
+    };
+
+    const safeTopMostMode = ['strong', 'balanced', 'light'].includes(merged.topMostMode)
+        ? merged.topMostMode
+        : DEFAULT_CONFIG.topMostMode;
+
+    return {
+        ...merged,
+        angle: safeNumber(merged.angle, DEFAULT_CONFIG.angle, -180, 180),
+        fontSize: safeNumber(merged.fontSize, DEFAULT_CONFIG.fontSize, 8, 240),
+        gap: safeNumber(merged.gap, DEFAULT_CONFIG.gap, 20, 1000),
+        opacity: safeNumber(merged.opacity, DEFAULT_CONFIG.opacity, 0.01, 1),
+        stretchX: safeNumber(merged.stretchX, DEFAULT_CONFIG.stretchX, 0.5, 3),
+        stretchY: safeNumber(merged.stretchY, DEFAULT_CONFIG.stretchY, 0.5, 3),
+        topMostMode: safeTopMostMode
     };
 }
 
@@ -100,34 +128,53 @@ function iconPath() {
     return nativeImage.createEmpty();
 }
 
-function applyTopMost(windowRef) {
+function applyTopMost(windowRef, syncWorkspaces = false) {
     if (!windowRef || windowRef.isDestroyed()) {
         return;
     }
 
-    // Use a higher level to keep watermark above normal app windows.
-    windowRef.setAlwaysOnTop(true, 'screen-saver');
-    windowRef.setVisibleOnAllWorkspaces(true, {
-        visibleOnFullScreen: true,
-        skipTransformProcessType: true
-    });
+    const mode = currentConfig.topMostMode || DEFAULT_CONFIG.topMostMode;
+
+    if (mode === 'strong') {
+        windowRef.setAlwaysOnTop(true, 'screen-saver');
+    } else if (mode === 'light') {
+        windowRef.setAlwaysOnTop(true, 'normal');
+    } else {
+        windowRef.setAlwaysOnTop(true, 'pop-up-menu');
+    }
+
+    if (syncWorkspaces || mode === 'strong') {
+        windowRef.setVisibleOnAllWorkspaces(true, {
+            visibleOnFullScreen: true,
+            skipTransformProcessType: true
+        });
+    } else {
+        windowRef.setVisibleOnAllWorkspaces(false);
+    }
 }
 
-function keepWatermarksTopMost() {
+function dropTopMostTemporarily() {
     for (const windowRef of watermarkWindows.values()) {
         if (!windowRef.isDestroyed()) {
-            applyTopMost(windowRef);
+            windowRef.setAlwaysOnTop(false);
         }
     }
 }
 
-function startTopMostGuard() {
-    if (keepTopTimer) {
-        clearInterval(keepTopTimer);
+function requestTopMostRefresh(delay = 120) {
+    if (topMostRefreshTimer) {
+        clearTimeout(topMostRefreshTimer);
     }
 
-    // Periodically re-apply top-most for edge cases (UAC/fullscreen switches).
-    keepTopTimer = setInterval(keepWatermarksTopMost, 2000);
+    topMostRefreshTimer = setTimeout(() => {
+        for (const windowRef of watermarkWindows.values()) {
+            if (!windowRef.isDestroyed()) {
+                applyTopMost(windowRef);
+            }
+        }
+
+        topMostRefreshTimer = null;
+    }, delay);
 }
 
 function broadcastConfig() {
@@ -145,6 +192,10 @@ function setWatermarkVisible(visible) {
         if (!windowRef.isDestroyed()) {
             windowRef.webContents.send('watermark-visibility', watermarkEnabled);
         }
+    }
+
+    if (watermarkEnabled) {
+        requestTopMostRefresh(0);
     }
 
     updateTrayMenu();
@@ -186,7 +237,7 @@ function createWatermarkWindowForDisplay(display) {
     });
 
     windowRef.setIgnoreMouseEvents(true, { forward: true });
-    applyTopMost(windowRef);
+    applyTopMost(windowRef, true);
     windowRef.loadFile('index.html');
 
     watermarkWindows.set(display.id, windowRef);
@@ -208,9 +259,11 @@ function createWatermarkWindowForDisplay(display) {
 
 function createWatermarkWindowsForAllDisplays() {
     const displays = screen.getAllDisplays();
-    for (const display of displays) {
-        createWatermarkWindowForDisplay(display);
-    }
+    displays.forEach((display, index) => {
+        setTimeout(() => {
+            createWatermarkWindowForDisplay(display);
+        }, index * 30);
+    });
 }
 
 function removeWatermarkWindowForDisplay(displayId) {
@@ -248,6 +301,8 @@ function syncWatermarkWindowsWithDisplays() {
             removeWatermarkWindowForDisplay(displayId);
         }
     }
+
+    requestTopMostRefresh(0);
 }
 
 function createSettingsWindow() {
@@ -279,7 +334,7 @@ function updateTrayMenu() {
         return;
     }
 
-    const menu = Menu.buildFromTemplate([
+    trayMenu = Menu.buildFromTemplate([
         {
             label: watermarkEnabled ? '关闭水印' : '开启水印',
             click: () => {
@@ -301,7 +356,6 @@ function updateTrayMenu() {
         }
     ]);
 
-    tray.setContextMenu(menu);
 }
 
 function createTray() {
@@ -309,6 +363,17 @@ function createTray() {
 
     tray.setToolTip('桌面水印');
     updateTrayMenu();
+
+    tray.on('right-click', () => {
+        if (!trayMenu) {
+            return;
+        }
+
+        // Temporarily lower watermark z-order to avoid blocking tray menu popup.
+        dropTopMostTemporarily();
+        tray.popUpContextMenu(trayMenu);
+        requestTopMostRefresh(120);
+    });
 }
 
 function registerIpc() {
@@ -322,6 +387,7 @@ function registerIpc() {
         currentConfig = normalizeConfig(nextConfig);
         saveConfig(currentConfig);
         broadcastConfig();
+        requestTopMostRefresh(0);
         setWatermarkVisible(true);
         return {
             ok: true,
@@ -349,7 +415,6 @@ function registerIpc() {
 app.whenReady().then(() => {
     currentConfig = loadConfig();
     createWatermarkWindowsForAllDisplays();
-    startTopMostGuard();
     createTray();
     registerIpc();
 
@@ -370,7 +435,7 @@ app.whenReady().then(() => {
             createWatermarkWindowsForAllDisplays();
         }
 
-        keepWatermarksTopMost();
+        requestTopMostRefresh(0);
     });
 });
 
@@ -379,8 +444,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-    if (keepTopTimer) {
-        clearInterval(keepTopTimer);
-        keepTopTimer = null;
+    if (topMostRefreshTimer) {
+        clearTimeout(topMostRefreshTimer);
+        topMostRefreshTimer = null;
     }
 });
